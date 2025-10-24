@@ -39,33 +39,52 @@ app.post('/webhook', async (req, res) => {
   try {
     if (!verifySignature(req)) return res.sendStatus(403);
     const body = req.body;
+    console.log('Received webhook:', JSON.stringify(body, null, 2));
+    
     const changes = body.entry?.[0]?.changes?.[0];
     const messages = changes?.value?.messages || [];
 
     for (const msg of messages) {
       const from = msg.from;
       const text = (msg.text?.body || '').toLowerCase();
+      const buttonReply = msg.interactive?.button_reply?.title;
+      
+      console.log(`Message from ${from}: text="${text}", button="${buttonReply}"`);
       
       // בדיקה אם זה משתמש חדש
       if (!userSessions.has(from)) {
+        console.log(`New user: ${from}`);
         userSessions.add(from);
         await sendInteractiveButtons(from);
-      } else if (text) {
+      } else if (text || buttonReply) {
         // משתמש קיים - תגובה לפי מילות מפתח
-  if (text.toLowerCase().includes('שלום')) {
-    await sendText(from, '🚀 בניית בוט זה קל! יש לי מדריכים חינמיים שיעזרו לך להתחיל. רוצה לראות?');
-  }
-  if (text.toLowerCase().includes('עזרה')) {
-    await sendText(from, '💡 אני כאן לעזור! במה נתקעת? ספר לי על הבעיה ואנסה לכוון אותך.');
-  }
-  if (text.toLowerCase().includes('משאבים')) {
-    await sendText(from, '📚 יש לי חומרים חינמיים: מדריכים, דוגמאות, וכלים. מה מעניין אותך?');
-  }
+        let foundMatch = false;
+        if ((text && text.includes('שלום')) || (buttonReply && buttonReply.includes('שלום'))) {
+          console.log('Found match for template: שלום');
+          foundMatch = true;
+          await sendText(from, '🚀 בניית בוט זה קל! יש לי מדריכים חינמיים שיעזרו לך להתחיל. רוצה לראות?');
+        }
+        if ((text && text.includes('עזרה')) || (buttonReply && buttonReply.includes('עזרה'))) {
+          console.log('Found match for template: עזרה');
+          foundMatch = true;
+          await sendText(from, '💡 אני כאן לעזור! במה נתקעת? ספר לי על הבעיה ואנסה לכוון אותך.');
+        }
+        if ((text && text.includes('משאבים')) || (buttonReply && buttonReply.includes('משאבים'))) {
+          console.log('Found match for template: משאבים');
+          foundMatch = true;
+          await sendText(from, '📚 יש לי חומרים חינמיים: מדריכים, דוגמאות, וכלים. מה מעניין אותך?');
+        }
+        
+        // אם לא נמצאה התאמה - שלח תגובת ברירת מחדל
+        if (!foundMatch) {
+          console.log(`No match found for: "${text || buttonReply}"`);
+          await sendText(from, 'לא הבנתי 🤔\n\nנסה לשלוח אחת ממילות המפתח שלי, או כתוב "עזרה" לקבלת רשימה.');
+        }
       }
     }
     res.sendStatus(200);
   } catch (e) {
-    console.error(e);
+    console.error('Webhook error:', e);
     res.sendStatus(500);
   }
 });
